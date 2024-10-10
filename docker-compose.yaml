@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  jupyter_service_sql:
+    build: services/
+    image: jupyter_service_sql:latest
+    container_name: jupyter_service_sql_container
+    volumes:
+      - .:/jupyternotebook
+      - work_dir:/work_dir
+    ports:
+      - "8888:8888"
+    networks:
+      - app_network
+
+  sql_analyst:
+    build: .
+    image: sql_analyst:latest
+    container_name: sql_analyst_container
+    volumes:
+      - .:/app
+      - work_dir:/work_dir
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - JUPYTER_URL=jupyter_service_sql:8888
+    tty: true 
+    stdin_open: true
+    # restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app_network
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  work_dir:  # Declare the shared volume
