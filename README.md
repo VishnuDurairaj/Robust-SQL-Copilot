@@ -25,11 +25,6 @@ git clone https://github.com/VishnuDurairaj/Robust-SQL-Copilot.git
 cd Robust-SQL-Copilot
 ```
 
-```bash
-git clone https://github.com/VishnuDurairaj/Robust-SQL-Copilot.git
-cd Robust-SQL-Copilot
-```
-
 ### **2.Run the Services with Docker Compose:**
 ```bash
 docker-compose up
