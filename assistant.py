@@ -442,30 +442,9 @@ from core.helper import print_colored
 from core.models import OpenaiChatModel,OpenAIVissionModel,AnthropicModel
 from core.text2sql.query_generator_2 import Text2SQL
 from core.tools.JupyterTool import NotebookManager
-
-
 from pydantic import BaseModel, Field
 
-user_session_id = str(uuid.uuid4())
-
-notebookmanager = NotebookManager(user_session_id)
-
 SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='dvt.cltnr045qcxt.ap-south-1.rds.amazonaws.com',port=3306,username='root',password='Factspan#2024',database='saravana_stores')
-
-
-class JupyterNotebookTool(BaseModel):
-
-    """A tool for executing Python code in a stateful Jupyter notebook environment."""
-    
-    python_code: str = Field(description="A valid python code to execute in a new jupyter notebook cell")
-
-    # expected_output_type : List[str] = Field(description="What output type should the script produce? It might be a single output or a combination of these: [text, dataframe, plotly chart, image, log or nothing]. Please specify the expected output(s) type in the exact order they should appear")
-
-    def run(self):
-
-        result = notebookmanager.run_code(self.python_code)
-
-        return result
 
 class GetRelavantTables(BaseModel):
     """
@@ -498,40 +477,72 @@ class ExecuteFinalQuery(BaseModel):
     final_query: str = Field(description="The final query to execute")
 
     def run(self):
+
         df = SQl_Engine.run_sql_query(self.final_query)
 
         if not df.empty:
+
             df.to_excel("work_dir/query_output.xlsx", index=False)
+
             return f"The data has been stored at `work_dir/query_output.xlsx`. The data contains {len(df)} rows, here is the snapshot of the dataframe : \n\n" + df.head(5).to_markdown()
         else:
             return "The query returned an empty dataframe : \n\n" + df.head(5).to_markdown()
 
-description = "Responsible for Answering User question."
-
-instruction = open(r"prompts/system_prompt.md","r").read()
-
-tools = [GetRelavantTables,ExecuteInertmediateQuery,ExecuteFinalQuery,JupyterNotebookTool]
-
-model = OpenaiChatModel(model_name="gpt-4o-mini",verbose=True)
-
-# model_name= 'claude-3-5-sonnet-20240620'
-
-# model = AnthropicModel(api_key=api_key)
-
-vissionmodel = OpenAIVissionModel(model="gpt-4o-mini")
-
-vission_prompt = "You are provided with a plot from a data analysis, You need to explain all the insights and metrics to the user"
-
-agent = ChainlitStructuredAgent(model,"AI Assistant",description,instruction,tools,max_allowed_attempts=30,vission_model=vissionmodel,vission_model_prompt=vission_prompt)
 
 @cl.on_chat_start
 def start_message():
+
+    user_session_id = str(uuid.uuid4())
+
+    notebookmanager = NotebookManager(user_session_id)
+
+    class JupyterNotebookTool(BaseModel):
+
+        """A tool for executing Python code in a stateful Jupyter notebook environment."""
+        
+        python_code: str = Field(description="A valid python code to execute in a new jupyter notebook cell")
+
+        # expected_output_type : List[str] = Field(description="What output type should the script produce? It might be a single output or a combination of these: [text, dataframe, plotly chart, image, log or nothing]. Please specify the expected output(s) type in the exact order they should appear")
+
+        def run(self):
+
+            result = notebookmanager.run_code(self.python_code)
+
+            return result
+
+    description = "Responsible for Answering User question."
+
+    instruction = open(r"prompts/system_prompt.md","r").read()
+
+    tools = [GetRelavantTables,ExecuteInertmediateQuery,ExecuteFinalQuery,JupyterNotebookTool]
+
+    model = OpenaiChatModel(model_name="gpt-4o-mini",verbose=True)
+
+    # model_name= 'claude-3-5-sonnet-20240620'
+
+    # model = AnthropicModel(api_key=api_key)
+
+    vissionmodel = OpenAIVissionModel(model="gpt-4o-mini")
+
+    vission_prompt = "You are provided with a plot from a data analysis, You need to explain all the insights and metrics to the user"
+
+    agent = ChainlitStructuredAgent(model,"AI Assistant",description,instruction,tools,max_allowed_attempts=30,vission_model=vissionmodel,vission_model_prompt=vission_prompt)
+
     cl.user_session.set("messages",[])
+
+    cl.user_session.set("agent",agent)
+
+    cl.user_session.set("notebookmanager",notebookmanager)
+
+    cl.user_session.set("user_session_id",user_session_id)
+
 
 @cl.on_message
 async def on_message(user_input: cl.Message):
 
     messages=cl.user_session.get("messages")
+
+    agent=cl.user_session.get("agent")
 
     response = await agent.run(user_input.content,messages)
 
@@ -541,4 +552,9 @@ async def on_message(user_input: cl.Message):
 
 @cl.on_chat_end
 def delete_notebook():
+
+    notebookmanager=cl.user_session.get("notebookmanager")
+
+    user_session_id=cl.user_session.get("user_session_id")
+
     notebookmanager.delete_notebook(user_session_id)
