@@ -30,6 +30,10 @@ git clone https://github.com/VishnuDurairaj/Robust-SQL-Copilot.git
 cd Robust-SQL-Copilot
 ```
 
+#### Note : The supported database types are - [mysql,postgresql,sql_server,snowflake]
+
+- I tested with Mysql and PostgressSQL and If you face any issues with other database please raise a github issue.
+
 ### **2.Run the Services with Docker Compose:**
 ```bash
 docker-compose up
