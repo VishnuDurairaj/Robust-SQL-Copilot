@@ -18,6 +18,11 @@
 
 ### **How to Run the Project**
 
+```bash
+git clone https://github.com/VishnuDurairaj/Robust-SQL-Copilot.git
+cd Robust-SQL-Copilot
+```
+
 ### **1.Clone the Repository:**
 
 ```bash
