@@ -56,7 +56,7 @@ class Text2SQL(QdrantVectorStore, SQLConnector):
         QdrantVectorStore.__init__(self, db_location, dense_model, sparse_model, hybrid)
         
         # Initialize SQLConnector
-        SQLConnector.__init__(self)
+        SQLConnector.__init__(self,db_type,host,port,username,password,database)
 
         self.model_name = model_name
 

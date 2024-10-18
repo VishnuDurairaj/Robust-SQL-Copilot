@@ -48,10 +48,11 @@ logger = logging.getLogger(__name__)
 
 class SQLConnector:
 
-    def __init__(self) -> None:
+    def __init__(self,db_type,host,port,username,password,database) -> None:
         self.schema_description = None
         self.dialect=None
         self.database_name = None
+        self.db_type,self.host,self.port,self.username,self.password,self.database = db_type,host,port,username,password,database
 
     def connect_to_mysql(self, host, port, username, password, database=None):
         # password = quote_plus(password)
@@ -299,9 +300,23 @@ class SQLConnector:
     #         return df
 
     def run_sql_query(self, query):
+        
         if not self.connection:
-            logger.warning("Database connection is not established.")
-            return None
+
+            logger.warning("Database connection is not established. Trying to connect")
+
+            func_name = f"connect_to_{self.db_type.lower()}"
+    
+            func = getattr(self, func_name)
+
+            self.connection = func(self.host,self.port,self.username,self.password,self.database)
+
+            with self.connection.cursor() as cursor:
+                cursor.execute(query)
+                data = cursor.fetchall()
+                column = [i[0] for i in cursor.description]
+                df = pd.DataFrame(data, columns=column)
+                return df
 
         try:
             with self.connection.cursor() as cursor:
