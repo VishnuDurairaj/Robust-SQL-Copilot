@@ -8,7 +8,7 @@ from core.text2sql.reranker import DocumentReranker
 
 class QdrantVectorStore:
     
-    def __init__(self,db_location=None,url="http://3.109.124.224:6333",collection_name="Text2SQL",dense_model="sentence-transformers/all-MiniLM-L6-v2",sparse_model = "prithivida/Splade_PP_en_v1",hybird=True,enable_rerank=True) -> None:
+    def __init__(self,db_location=None,url=None,collection_name="Text2SQL",dense_model="sentence-transformers/all-MiniLM-L6-v2",sparse_model = "prithivida/Splade_PP_en_v1",hybird=True,enable_rerank=True) -> None:
         
         self.collection_name=collection_name
 
