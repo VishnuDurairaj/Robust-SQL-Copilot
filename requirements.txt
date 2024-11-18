@@ -9,12 +9,12 @@ requests==2.32.3
 tiktoken==0.7.0
 websocket-client==1.8.0
 lxml==5.3.0
+boto3==1.35.62
 
 # Machine learning and statistical modeling
 scikit-learn==1.5.1
 statsmodels==0.14.2
 scipy==1.14.1
-
 
 #transformers
 transformers==4.44.2
@@ -47,6 +47,7 @@ semantic-text-splitter==0.15.0
 markdownify==0.13.1
 sentence-transformers==3.0.1
 tabulate==0.9.0
+FlashRank==0.2.9
 
 #UI
 chainlit==1.1.402

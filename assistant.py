@@ -391,7 +391,13 @@ class ChainlitStructuredAgent:
 
             if tool_details['tool_name']=='FinalAnswer':
 
-                print_colored(f"Thoughts: {'\n'.join(tool_details['thoughts'])}","green")
+                thoughts = tool_details.get("thoughts","")
+
+                if isinstance(thoughts,list):
+
+                    thoughts = '\n'.join(thoughts)
+
+                print_colored(f"Thoughts: {thoughts}","green")
 
                 print_colored(f"{self.agent_name} : {tool_details['tool_args']['final_answer']}","green")
 
@@ -406,16 +412,22 @@ class ChainlitStructuredAgent:
             else:
 
                 print()
-                # print_colored(f"Task_checklist: {'/n'.join(tool_details['task_checklist'])}","blue")
-                # print_colored(f"Completed_tasks: {'/n'.join(tool_details['completed_tasks'])}","blue")
-                print_colored(f"Thoughts: {'/n'.join(tool_details['thoughts'])}","magenta")
+
+                thoughts = tool_details.get("thoughts","")
+
+                if isinstance(thoughts,list):
+
+                    thoughts = '\n'.join(thoughts)
+
+                print_colored(f"Thoughts: {thoughts}","green")
+
                 print_colored(f"Tool Name: {tool_details['tool_name']}","blue")
                 # print_colored(f"Tool Name: {tool_details['tool_args']}","blue")
                 print()
 
                 if tool_details['tool_name'] == 'JupyterNotebookTool':
 
-                    asyncio.run(cl.Message("\n".join(tool_details['thoughts']).strip()).send())
+                    asyncio.run(cl.Message(thoughts.strip()).send())
 
                     # html = f"""<pre><code>{tool_details['tool_args']['python_code']}</code></pre>"""
                     html = f"""```python\n\n{tool_details['tool_args']['python_code']}\n\n```"""
@@ -437,6 +449,7 @@ class ChainlitStructuredAgent:
             return "Sorry! Max Attempt Exceeded, I can't take anymore tasks"
         
 import uuid
+import asyncio
 from pydantic import BaseModel,Field
 from core.helper import print_colored
 from core.models import OpenaiChatModel,OpenAIVissionModel,AnthropicModel
@@ -444,29 +457,68 @@ from core.text2sql.query_generator_2 import Text2SQL
 from core.tools.JupyterTool import NotebookManager
 from pydantic import BaseModel, Field
 
-SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='host',port=3306,username='username',password='password',database='database')
+# SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='postgresql',host='gen-ai-database.cltnr045qcxt.ap-south-1.rds.amazonaws.com',port=5432,username='postgres',password='FactspanAdmin#2024',database='RxB',add_additional_context=True)
+
+SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='dvt.cltnr045qcxt.ap-south-1.rds.amazonaws.com',port=3306,username='root',password='Factspan#2024',database='saravana_stores',add_additional_context=True,max_attempts=10)
 
 class GetRelavantTables(BaseModel):
     """
     Tool to retrieve relevant tables based on the user's question.
     """
 
-    user_question: str = Field(description="The user question")
+    user_question : str = Field("Provide the user question as it is.")
+
+    sub_questions: list[str] = Field(
+        description=(
+            "Split the user question into multiple sub-questions if answering it requires data from multiple tables. "
+            "Each sub-question should focus on a specific aspect of the user query, referring to relevant columns or tables. "
+            "For example: \n"
+            "User question: 'What is the total sales of XYZ product last month?'\n"
+            "Sub-questions: ['Which table contains product names?', 'Which column contains sales details?', 'Which table stores sales dates?']\n"
+            "Ensure sub-questions are precise and map clearly to tables or columns needed to answer the main query."
+            "Avoid duplication."
+        )
+    )
 
     def run(self):
-        return SQl_Engine.get_relavant_documents(self.user_question, top_n_similar_docs=20)
+        
+        docs = SQl_Engine.get_relavant_documents(self.sub_questions, top_n_similar_docs=200,filtered_tables=2)
 
+        filter_result = asyncio.run(SQl_Engine.filter_columns(self.user_question, docs))
+
+        final_schema="# Here are the relevant table schema.\n\n"
+
+        final_schema = "\n\n".join([f"""{i['filtered_columns']}\n\n### Here is the details on how this table connected to other tables\n: {i['common_columns']}""".strip() for i in filter_result  if i['filtered_columns']])
+
+        with open("relevant_schemas.txt","a") as f:
+            f.write(f"User Question : {self.user_question}\n\n")
+            f.write(f"Sub Queries\n: {"\n\t".join(self.sub_questions)}\n\n")
+            f.write(final_schema.strip())
+            f.write("\n\n***************************************************************\n\n")
+
+        return final_schema
+    
+        # return "\n\n------------------------------------\n\n".join([i['text_data'] for i in docs])
 
 class ExecuteInertmediateQuery(BaseModel):
     """
-    Use this tool to execute an intermediate SQL sub-query to find out teh available unique categories or values in a column.
+    Use this tool to execute an intermediate SQL sub-query to retrieve the unique categories or values available in a specific column. 
+
+    Do not directly use the user-provided values in the WHERE clause. First, execute a query to fetch the unique values from the column. 
+    
+    Based on the retrieved results, validate and construct the final query to ensure accuracy and alignment with the data.
+
+    For example, if the user requests 'drug-x' but the table contains 'Drug-X', this tool ensures the correct value appears at the top.
     """
 
     user_question: str = Field(description="The user question")
     sub_query: str = Field(description="The sub-query to execute")
 
     def run(self):
-        return SQl_Engine.execute_inertmediate_query(self.user_question, self.sub_query)
+        
+        print("Sub Quer: ",self.sub_query)
+
+        return f"Observation: {SQl_Engine.execute_inertmediate_query(self.user_question, self.sub_query)}"
 
 
 class ExecuteFinalQuery(BaseModel):
@@ -484,7 +536,7 @@ class ExecuteFinalQuery(BaseModel):
 
             df.to_excel("work_dir/query_output.xlsx", index=False)
 
-            return f"The data has been stored at `work_dir/query_output.xlsx`. The data contains {len(df)} rows, here is the snapshot of the dataframe : \n\n" + df.head(5).to_markdown()
+            return f"Observation: The data has been stored at `work_dir/query_output.xlsx`. The data contains {len(df)} rows, here is the snapshot(First 5 rows) of the dataframe : \n\n" + df.head(5).to_markdown()
         else:
             return "The query returned an empty dataframe : \n\n" + df.head(5).to_markdown()
 

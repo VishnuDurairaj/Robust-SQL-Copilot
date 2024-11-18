@@ -3,7 +3,9 @@ sys.dont_write_bytecode =True
 
 import os
 import logging
+import asyncio
 import instructor
+import nest_asyncio
 import pandas as pd
 from typing import List
 from openai import OpenAI
@@ -12,9 +14,13 @@ from difflib import get_close_matches
 from openai import OpenAI as instructor_OpenAI
 from core.text2sql.sql_connectors import SQLConnector
 from core.text2sql.vectorestores import QdrantVectorStore
+from core.text2sql.add_context import AddTableContext
+from core.text2sql.text_splitter import Schema2Chunks
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+nest_asyncio.apply()
 
 class SQLqueryFormat(BaseModel):
     requirements: str = Field(description="Describe the user requirements in details")
@@ -29,7 +35,7 @@ class SQLColumnValue(BaseModel):
     value : List[str] = Field(description="The values from the user question which should be used in where clause")
 
 class ColumnAndValue(BaseModel):
-    column_and_values : List[SQLColumnValue] = Field(description="The columns and the values associated with them")
+    column_and_values : List[SQLColumnValue] = Field(description="The columns and the values associated with them. Ignore Date related columns and values, foucs only on categorical columns.")
 
 example_syntax = {
     "MySQL": "SELECT column_name FROM database_name.table_name WHERE condition;\n",
@@ -46,23 +52,42 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 
-class Text2SQL(QdrantVectorStore, SQLConnector):
+class Text2SQL(QdrantVectorStore, SQLConnector,AddTableContext,Schema2Chunks):
 
-    def __init__(self,model_name,api_key,db_type,host,port,username,password,database, dense_model="sentence-transformers/all-MiniLM-L6-v2", sparse_model="prithivida/Splade_PP_en_v1", hybrid=True,max_attempts=5) -> None:
+    def __init__(self,model_name,api_key,db_type,host,port,username,password,database,db_location=None, db_url="http://3.109.124.224:6333",dense_model="sentence-transformers/all-MiniLM-L6-v2", sparse_model="prithivida/Splade_PP_en_v1", hybrid=True,override_existing_index=False,max_attempts=5,add_additional_context=True) -> None:
         
-        # Initialize QdrantVectorStore
-        db_location = self._deterministic_uuid(content=f"{host,port,username,password,database}")
+        self.api_key = os.getenv("OPENAI_API_KEY") or api_key
 
-        QdrantVectorStore.__init__(self, db_location, dense_model, sparse_model, hybrid)
+        if not self.api_key:
+
+            raise ValueError("Please Set Your OPENAI_API_KEY.")
+
+        # Initialize QdrantVectorStore
+
+        if not db_url:
+
+            db_location = self._deterministic_uuid(content=f"{host,port,username,password,database}")
+
+            QdrantVectorStore.__init__(self,db_location=db_location, dense_model=dense_model, sparse_model=sparse_model, hybird=hybrid)
+        
+        else:
+
+            QdrantVectorStore.__init__(self, url=db_url, dense_model=dense_model, sparse_model=sparse_model, hybird=hybrid)
         
         # Initialize SQLConnector
         SQLConnector.__init__(self,db_type,host,port,username,password,database)
 
+        AddTableContext.__init__(self,model_name)
+
+        Schema2Chunks.__init__(self,model_name)
+
         self.model_name = model_name
 
-        self.api_key = os.getenv("OPENAI_API_KEY") or api_key
-
         self.max_attempts = max_attempts
+
+        self.override_existing_index=override_existing_index
+
+        self.add_additional_context = add_additional_context
 
         self.instructor_client = instructor.from_openai(instructor_OpenAI(api_key=self.api_key))
 
@@ -81,13 +106,41 @@ class Text2SQL(QdrantVectorStore, SQLConnector):
 
         func(self.host, self.port, self.username, self.password, self.database)
 
-        documents = self.schema_description['data_points'].to_list()
+        if not self.client_qdrant.collection_exists("Text2SQL") or self.client_qdrant.count("Text2SQL").count==0 or self.override_existing_index:
 
-        ids = self.schema_description['id'].to_list()
+            filtred_data = self.schema_description
 
-        logging.info(f"Adding Schema details to VectorDB.....!")
+            common_cols = self.extract_table_relationships(filtred_data)
 
-        return self.add_documents_to_schema_details(documents,ids)
+            if self.add_additional_context:
+
+                documents = []
+
+                ids = []
+
+                metadata = []
+
+                data_points = asyncio.run(self.process_all_schema(filtred_data,common_cols))
+
+                for key in data_points.keys():
+
+                    documents.extend(data_points[key]['chunks'])
+                    
+                    metadata.extend([{"table_id":data_points[key]['ids'][0],"text_data":data_points[key]['text_data'],"relationships":data_points[key]['relationships'],"common_columns":data_points[key]['common_columns']}]*len(data_points[key]['chunks']))
+
+                logging.info(f"Adding Schema details to VectorDB.....!")
+
+            else:
+
+                ids = []
+
+                schemas =self.schema_data_to_train.to_dict(orient="records")
+
+                documents,metadata =self.split_text(schemas,common_cols)
+
+                logging.info(f"Adding Schema details to VectorDB.....!")
+
+            return self.add_documents_to_schema_details(documents,ids,metadata)
 
     def TextAgent(self,messages,format):
         format = self.instructor_client.chat.completions.create(
@@ -98,7 +151,6 @@ class Text2SQL(QdrantVectorStore, SQLConnector):
             max_retries=self.max_attempts
         )
         return format.model_dump()
-
 
     def execute_inertmediate_query(self,user_question,sub_query):
 
@@ -146,7 +198,7 @@ class Text2SQL(QdrantVectorStore, SQLConnector):
 
     def reorder_dataframe(self,df, column_and_values):
 
-        print("Re-ordering.................")
+        print("************************ Re-ordering ***********************************")
         
         final_df = []
         
