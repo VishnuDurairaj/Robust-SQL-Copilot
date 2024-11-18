@@ -1,6 +1,10 @@
 ## **Project Overview**
 **SQL Copilot** is an AI-powered assistant designed to help users interact with their SQL databases through a conversational chat interface. Users can configure their SQL database, and the AI assistant will assist with all aspects of querying and data analysis, from basic queries to complex operations. SQL queries are executed directly on the user's database, providing a flexible and interactive experience for data exploration.
 
+### **Architecture**
+------------------------
+![Architecture](Text2SQL-Architecture.jpg)
+------------------------
 ### **Key Features**
 - **Easy Database Configuration**: Users can configure and connect their SQL databases (e.g., MySQL, PostgreSQL, SQL Server, etc.) to begin querying.
 - **Conversational Interaction**: Through chat-based conversation, users can ask the assistant to execute SQL queries, perform joins, aggregations, and more.
