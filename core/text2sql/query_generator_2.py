@@ -54,7 +54,7 @@ logging.basicConfig(
 
 class Text2SQL(QdrantVectorStore, SQLConnector,AddTableContext,Schema2Chunks):
 
-    def __init__(self,model_name,api_key,db_type,host,port,username,password,database,db_location=None, db_url="http://3.109.124.224:6333",dense_model="sentence-transformers/all-MiniLM-L6-v2", sparse_model="prithivida/Splade_PP_en_v1", hybrid=True,override_existing_index=False,max_attempts=5,add_additional_context=True) -> None:
+    def __init__(self,model_name,api_key,db_type,host,port,username,password,database,db_location=None, db_url="",dense_model="sentence-transformers/all-MiniLM-L6-v2", sparse_model="prithivida/Splade_PP_en_v1", hybrid=True,override_existing_index=False,max_attempts=5,add_additional_context=True) -> None:
         
         self.api_key = os.getenv("OPENAI_API_KEY") or api_key
 
