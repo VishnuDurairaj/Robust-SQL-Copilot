@@ -457,9 +457,7 @@ from core.text2sql.query_generator_2 import Text2SQL
 from core.tools.JupyterTool import NotebookManager
 from pydantic import BaseModel, Field
 
-# SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='postgresql',host='gen-ai-database.cltnr045qcxt.ap-south-1.rds.amazonaws.com',port=5432,username='postgres',password='FactspanAdmin#2024',database='RxB',add_additional_context=True)
-
-SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='dvt.cltnr045qcxt.ap-south-1.rds.amazonaws.com',port=3306,username='root',password='Factspan#2024',database='saravana_stores',add_additional_context=True,max_attempts=10)
+SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='host',port=3306,username='root',password='Password',database='saravana_stores',add_additional_context=True,max_attempts=10)
 
 class GetRelavantTables(BaseModel):
     """
