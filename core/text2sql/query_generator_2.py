@@ -54,7 +54,7 @@ logging.basicConfig(
 
 class Text2SQL(QdrantVectorStore, SQLConnector,AddTableContext,Schema2Chunks):
 
-    def __init__(self,model_name,api_key,db_type,host,port,username,password,database,db_location=None, db_url="",dense_model="sentence-transformers/all-MiniLM-L6-v2", sparse_model="prithivida/Splade_PP_en_v1", hybrid=True,override_existing_index=False,max_attempts=5,add_additional_context=True) -> None:
+    def __init__(self,model_name,api_key,db_type,host,port,username,password,database,db_location=None, db_url="http://qdrant:6333",dense_model="sentence-transformers/all-MiniLM-L6-v2", sparse_model="prithivida/Splade_PP_en_v1", hybrid=True,override_existing_index=False,max_attempts=5,add_additional_context=True) -> None:
         
         self.api_key = os.getenv("OPENAI_API_KEY") or api_key
 
@@ -64,15 +64,17 @@ class Text2SQL(QdrantVectorStore, SQLConnector,AddTableContext,Schema2Chunks):
 
         # Initialize QdrantVectorStore
 
+        self.collection_name = f"{self._deterministic_uuid(content=f"{host,port,username,password,database}")}_collection"
+
         if not db_url:
 
             db_location = self._deterministic_uuid(content=f"{host,port,username,password,database}")
 
-            QdrantVectorStore.__init__(self,db_location=db_location, dense_model=dense_model, sparse_model=sparse_model, hybird=hybrid)
+            QdrantVectorStore.__init__(self,db_location=db_location,collection_name=self.collection_name, dense_model=dense_model, sparse_model=sparse_model, hybird=hybrid)
         
         else:
 
-            QdrantVectorStore.__init__(self, url=db_url, dense_model=dense_model, sparse_model=sparse_model, hybird=hybrid)
+            QdrantVectorStore.__init__(self, url=db_url,collection_name=self.collection_name, dense_model=dense_model, sparse_model=sparse_model, hybird=hybrid)
         
         # Initialize SQLConnector
         SQLConnector.__init__(self,db_type,host,port,username,password,database)
@@ -106,7 +108,7 @@ class Text2SQL(QdrantVectorStore, SQLConnector,AddTableContext,Schema2Chunks):
 
         func(self.host, self.port, self.username, self.password, self.database)
 
-        if not self.client_qdrant.collection_exists("Text2SQL") or self.client_qdrant.count("Text2SQL").count==0 or self.override_existing_index:
+        if not self.client_qdrant.collection_exists(self.collection_name) or self.client_qdrant.count(self.collection_name).count==0 or self.override_existing_index:
 
             filtred_data = self.schema_description
 

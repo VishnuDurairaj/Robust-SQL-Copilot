@@ -457,7 +457,7 @@ from core.text2sql.query_generator_2 import Text2SQL
 from core.tools.JupyterTool import NotebookManager
 from pydantic import BaseModel, Field
 
-SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='host',port=3306,username='root',password='Password',database='saravana_stores',add_additional_context=True,max_attempts=10)
+SQl_Engine = Text2SQL("gpt-4o-mini","",db_type='mysql',host='host',port=3306,username='name',password='password',database='db_name',add_additional_context=True,max_attempts=10)
 
 class GetRelavantTables(BaseModel):
     """
@@ -472,15 +472,16 @@ class GetRelavantTables(BaseModel):
             "Each sub-question should focus on a specific aspect of the user query, referring to relevant columns or tables. "
             "For example: \n"
             "User question: 'What is the total sales of XYZ product last month?'\n"
-            "Sub-questions: ['Which table contains product names?', 'Which column contains sales details?', 'Which table stores sales dates?']\n"
+            "Sub-questions: ['Which column contains product names?', 'Which column contains sales details?',]\n"
             "Ensure sub-questions are precise and map clearly to tables or columns needed to answer the main query."
-            "Avoid duplication."
+            "With each table you will get it's relationship to other tables. So dont need seperate question for that."
+            "Avoid duplication. Focus and retrieving the accurate columns."
         )
     )
 
     def run(self):
         
-        docs = SQl_Engine.get_relavant_documents(self.sub_questions, top_n_similar_docs=200,filtered_tables=2)
+        docs = SQl_Engine.get_relavant_documents(self.sub_questions, top_n_similar_docs=30,filtered_tables=2)
 
         filter_result = asyncio.run(SQl_Engine.filter_columns(self.user_question, docs))
 
@@ -516,6 +517,9 @@ class ExecuteInertmediateQuery(BaseModel):
         
         print("Sub Quer: ",self.sub_query)
 
+        asyncio.run(cl.Message(f"```sql\n\n{self.sub_query}\n\n```").send())
+
+
         return f"Observation: {SQl_Engine.execute_inertmediate_query(self.user_question, self.sub_query)}"
 
 
@@ -530,13 +534,23 @@ class ExecuteFinalQuery(BaseModel):
 
         df = SQl_Engine.run_sql_query(self.final_query)
 
+        asyncio.run(cl.Message(f"```sql\n\n{self.final_query}\n\n```").send())
+
         if not df.empty:
 
-            df.to_excel("work_dir/query_output.xlsx", index=False)
+            if df.shape[0]>=20:
 
-            return f"Observation: The data has been stored at `work_dir/query_output.xlsx`. The data contains {len(df)} rows, here is the snapshot(First 5 rows) of the dataframe : \n\n" + df.head(5).to_markdown()
+                df.to_excel("work_dir/query_output.xlsx", index=False)
+
+                return f"Observation: The data has been stored at `work_dir/query_output.xlsx`. The data contains {len(df)} rows, here is the snapshot(First 5 rows) of the dataframe : \n\n" + df.head(5).to_markdown()
+            
+            else:
+
+                df.to_excel("work_dir/query_output.xlsx", index=False)
+
+                return "Observation: The data has been stored at `work_dir/query_output.xlsx`. \n\n Here is the output of the query" + df.to_markdown()
         else:
-            return "The query returned an empty dataframe : \n\n" + df.head(5).to_markdown()
+            return "The Query Returned Empty DatafRame: \n\n" + df.head(5).to_markdown()
 
 
 @cl.on_chat_start

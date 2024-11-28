@@ -8,7 +8,7 @@ from core.text2sql.reranker import DocumentReranker
 
 class QdrantVectorStore:
     
-    def __init__(self,db_location="vector_db",url=None,collection_name="Text2SQL",dense_model="sentence-transformers/all-MiniLM-L6-v2",sparse_model = "prithivida/Splade_PP_en_v1",hybird=True,enable_rerank=True) -> None:
+    def __init__(self,db_location=None,url="http://qdrant:6333",collection_name="Text2SQL",dense_model="sentence-transformers/all-MiniLM-L6-v2",sparse_model = "prithivida/Splade_PP_en_v1",hybird=True,enable_rerank=True) -> None:
         
         self.collection_name=collection_name
 
@@ -38,6 +38,8 @@ class QdrantVectorStore:
                     # comment this line to use dense vectors only
                     sparse_vectors_config=self.client_qdrant.get_fastembed_sparse_vector_params(),  
                 )
+            else:
+                print("Collection Exist..")
         else:
             if not self.client_qdrant.collection_exists(self.collection_name):
 
@@ -45,24 +47,26 @@ class QdrantVectorStore:
                     collection_name=self.collection_name,
                     vectors_config=self.client_qdrant.get_fastembed_vector_params()
                 )
-
-    def add_documents_to_schema_details(self,documents,ids,metadata=[],collection_name="Text2SQL"):
+            else:
+                print("Collection Exist..")
+                
+    def add_documents_to_schema_details(self,documents,ids,metadata=[],collection_name=None):
 
         if not len(ids):
 
             ids =[self._deterministic_uuid(i) for i in documents]
             
         return self.client_qdrant.add(
-        collection_name=collection_name,
+        collection_name=self.collection_name,
         documents=documents,
         ids=tqdm(range(len(documents))),
         metadata=metadata)
 
-    def get_relavant_documents(self, texts: list,collection_name:str="Text2SQL",top_n_similar_docs:int=200,filtered_tables:int=2):
+    def get_relavant_documents(self, texts: list,collection_name:str=None,top_n_similar_docs:int=30,filtered_tables:int=2):
 
-        if top_n_similar_docs>self.client_qdrant.count("Text2SQL").count:
+        if top_n_similar_docs>self.client_qdrant.count(self.collection_name).count:
 
-            top_n_similar_docs=self.client_qdrant.count("Text2SQL").count
+            top_n_similar_docs=self.client_qdrant.count(self.collection_name).count
 
         final_metadata_id = set()
 
@@ -73,7 +77,7 @@ class QdrantVectorStore:
         for text in texts:
 
             search_result = self.client_qdrant.query(
-                collection_name=collection_name,
+                collection_name=self.collection_name,
                 query_text=text,
                 limit=top_n_similar_docs, 
             )
@@ -101,7 +105,6 @@ class QdrantVectorStore:
                     final_metadata_schema.extend(sub_metadata_schema)
 
                     break
-
 
         return [{"text_data": i,"common_columns":j }  for i, j in list(final_metadata_schema)]
 

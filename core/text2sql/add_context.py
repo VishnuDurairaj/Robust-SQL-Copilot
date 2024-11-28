@@ -156,7 +156,7 @@ Only include information explicitly requested. Do not mention any other details.
 
         table_description_system_prompt = """You are an expert database and business developer specializing in documentation
 Your task is to review database schemas and generate comprehensive documentation in JSON format. 
-Focus on providing insights relevant to the betting industry, including table purposes, column descriptions, 
+Focus on providing insights relevant to the given database, including table purposes, column descriptions, 
 and potential use cases. Be concise yet informative, and ensure all output is in valid JSON format."""
 
 
@@ -245,7 +245,7 @@ If you need more space to complete the documentation, end your response with "[C
         
         return final_response
 
-    async def process_all_schema(self,filtred_data,common_cols,batch=5):
+    async def process_all_schema(self,filtred_data,common_cols,batch=10):
 
         tables = [i[1].reset_index(drop=True).to_markdown() for i in filtred_data.groupby(['table_catalog','table_schema','table_name'])]
 
